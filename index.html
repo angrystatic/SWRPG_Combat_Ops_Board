@@ -185,24 +185,6 @@
             color: var(--text-color);
             position: relative;
             transition: border-color 0.3s ease, opacity 0.3s ease;
-            cursor: grab;
-        }
-        
-        .character-card.dragging {
-            opacity: 0.5;
-            border-style: dashed;
-            cursor: grabbing;
-        }
-
-        .drop-zone {
-            background: transparent;
-            border: 2px dashed var(--primary-color);
-            border-radius: 4px;
-            height: 390px; /* Approximate height of a card */
-            width: 340px;
-            transition: all 0.2s ease;
-            box-sizing: border-box;
-            flex-shrink: 0;
         }
         
         .remove-button {
@@ -228,6 +210,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            flex-shrink: 0;
         }
         .status-indicator svg { width: 80%; height: 80%; }
         .status-indicator path, .status-indicator circle { stroke: var(--primary-color); }
@@ -245,6 +228,36 @@
             box-sizing: border-box; outline: none;
         }
 
+        .initiative-control {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            background-color: var(--monitor-bg);
+            padding: 4px;
+            border-radius: 4px;
+            border: 1px solid var(--text-color);
+        }
+        .initiative-control .stat-readout {
+            text-align: center;
+        }
+        .initiative-control label {
+            font-size: 0.9em;
+            text-transform: uppercase;
+            color: var(--secondary-color);
+            margin-bottom: -4px;
+        }
+        .initiative-control input {
+            width: 40px;
+            text-align: center;
+            font-size: 1.5em;
+            background-color: transparent;
+            color: var(--text-color);
+            border: none;
+            font-family: inherit;
+            -moz-appearance: textfield;
+        }
+        .initiative-control input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        
         .stat-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -339,7 +352,10 @@
         .character-card.status-dead .char-name-display,
         .character-card.status-dead .char-name-edit,
         .character-card.status-dead .type-select,
-        .character-card.status-dead .mark-dead-btn {
+        .character-card.status-dead .mark-dead-btn,
+        .character-card.status-dead .initiative-control,
+        .character-card.status-dead .initiative-control input,
+        .character-card.status-dead .initiative-control button {
             pointer-events: auto !important;
             filter: none;
             opacity: 1;
@@ -384,7 +400,6 @@
 
     // --- Data Store ---
     let characters = {};
-    let characterOrder = [];
     let destinyPool = { light: 0, dark: 0 };
     let nextCombatantIdCounter = 1;
     
@@ -404,11 +419,10 @@
 
     function setupDefaultState() {
         characters = {
-            char1: { name: "ZAE", type: 'PC', woundThreshold: 12, wounds: 0, strainThreshold: 14, strain: 0, soak: 3, meleeDef: 0, rangedDef: 0, criticalInjuries: [], status: 'Healthy', svgStateKey: 'healthy' },
-            npc1: { name: "STORMCOMMANDO", type: 'Rival', woundThreshold: 10, wounds: 3, strainThreshold: 10, strain: 0, soak: 4, meleeDef: 1, rangedDef: 1, criticalInjuries: [], status: 'Injured', svgStateKey: 'injured' },
-            minion1: { name: "PROBE DROID (3)", type: 'Minion', woundThreshold: 4, wounds: 0, strainThreshold: 0, strain: 0, soak: 2, meleeDef: 0, rangedDef: 0, criticalInjuries: [], status: 'Healthy', svgStateKey: 'healthy' }
+            char1: { name: "ZAE", initiative: 10, type: 'PC', woundThreshold: 12, wounds: 0, strainThreshold: 14, strain: 0, soak: 3, meleeDef: 0, rangedDef: 0, criticalInjuries: [], status: 'Healthy', svgStateKey: 'healthy' },
+            npc1: { name: "STORMCOMMANDO", initiative: 8, type: 'Rival', woundThreshold: 10, wounds: 3, strainThreshold: 10, strain: 0, soak: 4, meleeDef: 1, rangedDef: 1, criticalInjuries: [], status: 'Injured', svgStateKey: 'injured' },
+            minion1: { name: "PROBE DROID (3)", initiative: 5, type: 'Minion', woundThreshold: 4, wounds: 0, strainThreshold: 0, strain: 0, soak: 2, meleeDef: 0, rangedDef: 0, criticalInjuries: [], status: 'Healthy', svgStateKey: 'healthy' }
         };
-        characterOrder = ['char1', 'npc1', 'minion1'];
         destinyPool = { light: 2, dark: 1 };
         nextCombatantIdCounter = 4;
     }
@@ -419,16 +433,23 @@
 
         const activeElementId = document.activeElement?.id;
         
+        const sortedCharacterIds = Object.keys(characters).sort((a, b) => {
+            const initA = characters[a].initiative || 0;
+            const initB = characters[b].initiative || 0;
+            if (initB !== initA) {
+                return initB - initA;
+            }
+            return characters[a].name.localeCompare(characters[b].name);
+        });
+
         dashboardElement.innerHTML = '';
-        characterOrder.forEach(charId => {
+        sortedCharacterIds.forEach(charId => {
             const cardElement = createCharacterCardElement(charId);
             if (cardElement) {
                 dashboardElement.appendChild(cardElement);
                 renderCharacterCard(charId);
             }
         });
-        
-        initializeDragAndDrop();
         
         if(activeElementId) {
             const focusedElement = document.getElementById(activeElementId);
@@ -442,17 +463,17 @@
         if (!char || !card) return;
 
         const adversaryTypes = ['Minion', 'Rival', 'Nemesis'];
-        if (adversaryTypes.includes(char.type)) {
-            card.classList.add('adversary');
-        } else {
-            card.classList.remove('adversary');
-        }
+        card.classList.toggle('adversary', adversaryTypes.includes(char.type));
 
         ['healthy', 'injured', 'incapacitated', 'dead'].forEach(s => card.classList.remove(`status-${s}`));
         card.classList.add(`status-${char.status.toLowerCase()}`);
 
         if (document.activeElement !== card.querySelector('.char-name-edit')) {
             card.querySelector('.char-name-display').textContent = char.name.toUpperCase();
+        }
+        
+        if (document.activeElement !== card.querySelector('.input-initiative')) {
+            card.querySelector('.input-initiative').value = char.initiative;
         }
 
         card.querySelector('.status-indicator').innerHTML = svgStates[char.svgStateKey] || svgStates['healthy'];
@@ -496,10 +517,10 @@
         const card = document.createElement('div');
         card.className = 'character-card';
         card.id = charId;
-        card.setAttribute('draggable', 'true');
         
         const nameDisplayId = `name-display-${charId}`;
         const nameInputId = `name-edit-${charId}`;
+        const initInputId = `init-input-${charId}`;
 
         card.innerHTML = `
             <button class="remove-button" onclick="removeCombatant('${charId}')" title="Remove ${char.name}">X</button>
@@ -509,6 +530,14 @@
                 <div class="name-and-type">
                     <span class="char-name-display" id="${nameDisplayId}" onclick="showNameInput('${charId}')">${char.name.toUpperCase()}</span>
                     <input type="text" class="char-name-edit" id="${nameInputId}" value="${char.name}" onblur="hideNameInput('${charId}')" onkeydown="if(event.key === 'Enter') this.blur();">
+                </div>
+                <div class="initiative-control">
+                    <button class="stat-adjust-btn" onclick="updateStatus('${charId}', 'decrementInitiative')" title="-1 Initiative">-</button>
+                    <div class="stat-readout">
+                        <label for="${initInputId}">INIT</label>
+                        <input type="number" class="input-initiative" id="${initInputId}" value="${char.initiative}" onchange="updateStatus('${charId}', 'setInitiative', this.valueAsNumber)">
+                    </div>
+                    <button class="stat-adjust-btn" onclick="updateStatus('${charId}', 'incrementInitiative')" title="+1 Initiative">+</button>
                 </div>
             </div>
 
@@ -564,12 +593,17 @@
         const char = characters[charId];
         if (!char) return;
         
-        const allowedWhenDead = ['revive', 'setType', 'setName'];
+        const allowedWhenDead = ['revive', 'setType', 'setName', 'setInitiative', 'incrementInitiative', 'decrementInitiative'];
         if (char.status === 'Dead' && !allowedWhenDead.includes(action)) return;
+
+        let needsSort = false;
 
         switch (action) {
             case 'setName': char.name = value.trim() || "Unnamed"; break;
-            case 'setType': char.type = value; break;
+            case 'setType': char.type = value; needsSort = true; break;
+            case 'setInitiative': char.initiative = parseInt(value, 10) || 0; needsSort = true; break;
+            case 'incrementInitiative': char.initiative++; needsSort = true; break;
+            case 'decrementInitiative': char.initiative--; needsSort = true; break;
             case 'setSoak': char.soak = Math.max(0, parseInt(value, 10) || 0); break;
             case 'setMeleeDef': char.meleeDef = Math.max(0, parseInt(value, 10) || 0); break;
             case 'setRangedDef': char.rangedDef = Math.max(0, parseInt(value, 10) || 0); break;
@@ -595,7 +629,13 @@
         }
 
         recalculateStatus(charId);
-        renderCharacterCard(charId);
+        
+        if (needsSort) {
+            renderDashboard();
+        } else {
+            renderCharacterCard(charId);
+        }
+        
         saveState();
     }
     
@@ -603,7 +643,7 @@
         const char = characters[charId];
         if (!char || char.status === 'Dead') return;
         
-        if (char.wounds > char.woundThreshold || (char.strain > 0 && char.strain >= char.strainThreshold)) {
+        if (char.wounds >= char.woundThreshold || (char.strain > 0 && char.strain >= char.strainThreshold)) {
             char.status = 'Incapacitated';
             char.svgStateKey = 'incapacitated';
         } else if (char.wounds > char.woundThreshold / 2) {
@@ -619,12 +659,11 @@
     function addCombatant() {
         const id = `char${nextCombatantIdCounter++}`;
         characters[id] = {
-            name: "New Combatant", type: 'Minion',
+            name: "New Combatant", type: 'Minion', initiative: 0,
             woundThreshold: 5, wounds: 0, strainThreshold: 0, strain: 0,
             soak: 2, meleeDef: 0, rangedDef: 0, criticalInjuries: [],
             status: 'Healthy', svgStateKey: 'healthy'
         };
-        characterOrder.push(id);
         renderDashboard();
         saveState();
     }
@@ -632,7 +671,6 @@
     function removeCombatant(charId) {
         if (characters[charId]) {
             delete characters[charId];
-            characterOrder = characterOrder.filter(id => id !== charId);
             renderDashboard();
             saveState();
         }
@@ -717,79 +755,12 @@
         renderDestinyPool();
         saveState();
     }
-    
-    // --- Initiative Drag and Drop ---
-    function initializeDragAndDrop() {
-        const dashboard = document.getElementById('dashboard');
-        
-        dashboard.addEventListener('dragover', e => {
-            e.preventDefault();
-            const dragging = document.querySelector('.dragging');
-            if (!dragging) return;
-            
-            const afterElement = getDragAfterElement(dashboard, e.clientY);
-            const currentDropZone = dashboard.querySelector('.drop-zone');
-            
-            if (!currentDropZone) {
-                const dropZone = document.createElement('div');
-                dropZone.classList.add('drop-zone');
-                if (afterElement == null) {
-                    dashboard.appendChild(dropZone);
-                } else {
-                    dashboard.insertBefore(dropZone, afterElement);
-                }
-            } else if (currentDropZone.nextSibling !== afterElement) {
-                currentDropZone.remove();
-            }
-        });
-        
-        dashboard.addEventListener('drop', e => {
-             e.preventDefault();
-             const dragging = document.querySelector('.dragging');
-             const dropZone = document.querySelector('.drop-zone');
-             if(dragging && dropZone) {
-                dashboard.insertBefore(dragging, dropZone);
-                const newOrder = Array.from(dashboard.querySelectorAll('.character-card')).map(card => card.id);
-                characterOrder = newOrder;
-                saveState();
-             }
-             if(dropZone) dropZone.remove();
-        });
-
-        const cards = dashboard.querySelectorAll('.character-card');
-        cards.forEach(card => {
-            card.addEventListener('dragstart', () => {
-                setTimeout(() => card.classList.add('dragging'), 0);
-            });
-            card.addEventListener('dragend', () => {
-                card.classList.remove('dragging');
-                const dropZone = dashboard.querySelector('.drop-zone');
-                if(dropZone) dropZone.remove();
-            });
-        });
-    }
-
-    function getDragAfterElement(container, y) {
-        const draggableElements = [...container.querySelectorAll('.character-card:not(.dragging)')];
-
-        return draggableElements.reduce((closest, child) => {
-            const box = child.getBoundingClientRect();
-            const offset = y - box.top - box.height / 2;
-            if (offset < 0 && offset > closest.offset) {
-                return { offset: offset, element: child };
-            } else {
-                return closest;
-            }
-        }, { offset: Number.NEGATIVE_INFINITY }).element;
-    }
-
 
     // --- Data Persistence ---
     function saveState() {
         try {
             const state = {
                 characters,
-                characterOrder,
                 nextId: nextCombatantIdCounter
             };
             localStorage.setItem(CHAR_DATA_KEY, JSON.stringify(state));
@@ -807,17 +778,16 @@
             if (charDataString) {
                 const charData = JSON.parse(charDataString);
                 characters = charData.characters || {};
-                characterOrder = charData.characterOrder || Object.keys(characters);
                 nextCombatantIdCounter = charData.nextId || 1;
             } else {
-                return false; // Nothing to load, setup defaults
+                return false; 
             }
             
             if (destinyDataString) {
                 destinyPool = JSON.parse(destinyDataString);
             }
             
-            return true; // Successfully loaded data
+            return true;
         } catch (e) {
             console.error("Failed to load state:", e);
             return false;
