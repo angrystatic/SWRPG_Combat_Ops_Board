@@ -404,20 +404,27 @@
 
         const activeElementId = document.activeElement?.id;
         
-        // Save character order if initiative tracking is active
-        const characterOrder = Array.from(dashboardElement.children).map(card => card.id);
-
-        dashboardElement.innerHTML = '';
+        // Get the current order of character cards from the DOM
+        const existingOrder = Array.from(dashboardElement.children).map(card => card.id);
         
-        const idsToRender = characterOrder.length > 0 ? characterOrder : Object.keys(characters);
+        // Get all character IDs from our data source
+        const allCharIds = Object.keys(characters);
 
+        // Find which characters are new (in data but not in DOM)
+        const newCharIds = allCharIds.filter(id => !existingOrder.includes(id));
+        
+        // Combine the lists: the existing order (filtered for any deleted) plus any new ones
+        const idsToRender = existingOrder
+            .filter(id => allCharIds.includes(id)) // Ensure card exists in data
+            .concat(newCharIds); // Add new cards to the end
+
+        // Clear the board and re-render everything in the correct order
+        dashboardElement.innerHTML = '';
         idsToRender.forEach(charId => {
-            if(characters[charId]) {
-                const cardElement = createCharacterCardElement(charId);
-                if (cardElement) {
-                    dashboardElement.appendChild(cardElement);
-                    renderCharacterCard(charId);
-                }
+            const cardElement = createCharacterCardElement(charId);
+            if (cardElement) {
+                dashboardElement.appendChild(cardElement);
+                renderCharacterCard(charId); // Updates the card with the latest data
             }
         });
         
