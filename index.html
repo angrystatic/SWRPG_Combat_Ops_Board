@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Star Wars: Age of Rebellion Combat Tracker</title>
+    <style>
+        /* Import Google Font */
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        :root {
+            /* --- Theme Configuration (Light/Default - Amber Terminal) --- */
+            --monitor-bg: #0d0d0d; /* Very dark grey */
+            --primary-color: #FFBF00; /* Amber */
+            --secondary-color: #4682B4; /* Steel Blue for accents */
+            --incapacitated-color: #0074D9; /* Blue */
+            --dead-color: #555555; /* Dark Grey */
+            --card-bg: #1a1a1a;
+            --card-border-color: var(--secondary-color);
+            --text-color: var(--primary-color);
+            --overlay-text-color: white;
+            --input-bg: #222;
+            --input-border: var(--primary-color);
+            --grid-color: rgba(255, 191, 0, 0.08); /* Faint amber grid */
+            --font-family: 'VT323', monospace;
+            --text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+            --card-shadow: 3px 3px 8px rgba(0, 0, 0, 0.7);
+            --disabled-color: #777;
+            --disabled-input-bg: #333;
+            --button-text-color: var(--text-color);
+            --button-hover-bg: var(--primary-color);
+            --button-hover-text: black;
+            --button-hover-border: var(--primary-color);
+            --condition-active-border: var(--primary-color);
+            --condition-active-bg: #4d3800; /* Dark Amber */
+            --condition-active-text: var(--primary-color);
+            --destiny-light-bg: #4682B4; /* Steel Blue */
+            --destiny-light-text: #FFFFFF;
+            --destiny-dark-bg: #B22222; /* Firebrick Red */
+            --destiny-dark-text: #FFFFFF;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--card-bg);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            font-size: 18px;
+        }
+
+        .main-container {
+            padding: 20px;
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            text-align: center;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
+            font-size: 2.5em;
+        }
+        
+        h2 {
+            color: var(--secondary-color);
+            text-align: center;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+            font-size: 1.2em;
+        }
+
+        .main-controls {
+            text-align: center;
+            margin-bottom: 25px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .main-controls > button {
+            background-color: var(--input-bg);
+            color: var(--button-text-color);
+            border: 2px solid var(--input-border);
+            font-family: inherit;
+            font-size: 1.1em;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+        }
+
+        .main-controls > button:hover:not(:disabled) {
+            background-color: var(--button-hover-bg);
+            color: var(--button-hover-text);
+            border-color: var(--button-hover-border);
+        }
+        
+        #clear-data-button {
+            border-color: var(--destiny-dark-bg);
+            color: var(--destiny-dark-bg);
+        }
+
+        #clear-data-button:hover:not(:disabled) {
+            background-color: var(--destiny-dark-bg);
+            color: white;
+            border-color: var(--destiny-dark-bg);
+        }
+
+        .destiny-pool-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border: 2px solid var(--secondary-color);
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
+
+        .destiny-pool-container span {
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+        
+        .destiny-pool-container > button {
+            width: 28px;
+            height: 28px;
+            font-size: 1.4em;
+            line-height: 1;
+            padding: 0;
+            border-radius: 4px;
+            background-color: var(--input-bg);
+            color: var(--button-text-color);
+            border: 1px solid var(--input-border);
+            cursor: pointer;
+        }
+        .destiny-pool-container > button:hover {
+            background-color: var(--button-hover-bg);
+            color: var(--button-hover-text);
+        }
+
+        .destiny-point {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2em;
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+            margin: 0 2px;
+        }
+        .destiny-point:hover { transform: scale(1.1); }
+        .destiny-point.light { background-color: var(--destiny-light-bg); color: var(--destiny-light-text); border: 2px solid #a4d4ff;}
+        .destiny-point.dark { background-color: var(--destiny-dark-bg); color: var(--destiny-dark-text); border: 2px solid #ff9a9a;}
+
+        .dashboard {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 25px;
+            justify-content: center;
+        }
+
+        .character-card {
+            border: 3px solid var(--card-border-color);
+            background-color: var(--card-bg);
+            padding: 10px;
+            border-radius: 4px;
+            width: 340px;
+            box-shadow: inset 0 0 8px 0px rgba(0, 0, 0, 0.5), var(--card-shadow);
+            display: flex;
+            flex-direction: column;
+            color: var(--text-color);
+            position: relative;
+            transition: border-color 0.3s ease, opacity 0.3s ease;
+        }
+        
+        .remove-button {
+            position: absolute; top: 3px; right: 3px; background-color: #500; color: #fcc; border: 1px solid #a00;
+            border-radius: 50%; width: 22px; height: 22px; font-size: 12px; font-weight: bold; line-height: 20px;
+            text-align: center; cursor: pointer; padding: 0; box-shadow: 1px 1px 3px rgba(0,0,0,0.5); z-index: 10;
+        }
+        .remove-button:hover { background-color: #a00; color: white; }
+
+        .monitor-area {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .status-indicator {
+            width: 50px;
+            height: 50px;
+            border: 2px solid var(--primary-color);
+            background-color: var(--monitor-bg);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .status-indicator svg { width: 80%; height: 80%; }
+        .status-indicator path, .status-indicator circle { stroke: var(--primary-color); }
+
+        .name-and-type { flex-grow: 1; }
+        
+        .char-name-display {
+            display: inline-block; background-color: rgba(0,0,0,0.6); padding: 2px 6px; border-radius: 2px; font-size: 1.6em;
+            color: var(--overlay-text-color); text-shadow: var(--text-shadow); text-transform: uppercase; cursor: pointer;
+            max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+        }
+        .char-name-edit {
+            display: none; background-color: var(--input-bg); border: 1px solid var(--primary-color); color: var(--overlay-text-color);
+            font-family: inherit; font-size: 1.6em; text-transform: uppercase; padding: 1px 5px; width: 100%;
+            box-sizing: border-box; outline: none;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .stat-box {
+            background-color: var(--monitor-bg);
+            border: 1px solid var(--text-color);
+            border-radius: 4px;
+            padding: 5px 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .stat-readout { text-align: center; }
+        .stat-box label {
+            display: block;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            margin-bottom: 0px;
+            color: var(--secondary-color);
+        }
+        .stat-box .value {
+            font-size: 1.8em;
+            font-weight: bold;
+        }
+        .stat-box .threshold { font-size: 1.1em; opacity: 0.7; }
+        
+        .stat-adjust-btn {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border: 1px solid var(--input-border);
+            font-family: inherit;
+            font-size: 1.5em;
+            padding: 0;
+            border-radius: 2px;
+            cursor: pointer;
+            width: 30px;
+            height: 30px;
+            line-height: 1;
+        }
+        .stat-adjust-btn:hover:not(:disabled) {
+            background-color: var(--button-hover-bg);
+            color: var(--button-hover-text);
+        }
+
+        .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 10px; }
+        .info-item { display: flex; justify-content: space-between; align-items: center; background-color: var(--input-bg); padding: 4px 8px; border-radius: 2px; border: 1px solid var(--input-border); }
+        .info-item label { font-weight: normal; margin-right: 5px; color: var(--text-color); }
+        .info-item input, .info-item select { width: 60px; text-align: right; padding: 2px 4px; background-color: var(--input-bg); color: var(--text-color); border: none; font-family: inherit; font-size: 1em; -moz-appearance: textfield; }
+        .info-item input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .info-item select { width: auto; flex-grow: 1; text-align: left;}
+        
+        .crit-injuries-section { margin-top: 10px; }
+        .crit-injuries-section h3 {
+            margin: 0 0 5px 0; padding-bottom: 3px; font-size: 1em; text-transform: uppercase;
+            border-bottom: 1px solid var(--secondary-color); color: var(--secondary-color);
+        }
+        .crit-injuries-list {
+            list-style: none; padding: 0; margin: 0; max-height: 80px; overflow-y: auto;
+            background-color: var(--monitor-bg); border: 1px solid var(--text-color); border-radius: 3px; padding: 5px;
+        }
+        .crit-injuries-list li {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 2px; font-size: 0.9em;
+        }
+        .crit-injuries-list li button {
+             background: #600; color: #fcc; border: 1px solid #c00; font-size: 0.8em;
+             cursor: pointer; padding: 0 4px; border-radius: 2px;
+        }
+        
+        .add-crit-form { display: flex; gap: 5px; margin-top: 5px;}
+        .add-crit-form input { flex-grow: 1; padding: 2px 4px; background-color: var(--input-bg); color: var(--text-color); border: 1px solid var(--input-border); border-radius: 2px; font-family: inherit; font-size: 1em; }
+        .add-crit-form button { padding: 2px 8px; font-size: 1em; background-color: var(--input-bg); color: var(--text-color); border: 1px solid var(--input-border); cursor: pointer; }
+        
+        .character-card.status-incapacitated { border-color: var(--incapacitated-color); }
+        .character-card.status-incapacitated .status-indicator path,
+        .character-card.status-incapacitated .status-indicator circle { stroke: var(--incapacitated-color); }
+        
+        .character-card.status-dead { border-color: var(--dead-color); opacity: 0.7; }
+        .character-card.status-dead .status-indicator path,
+        .character-card.status-dead .status-indicator circle { stroke: var(--dead-color); }
+        .character-card.status-dead > *:not(.remove-button):not(.monitor-area) { filter: grayscale(90%); }
+        .character-card.status-dead input, .character-card.status-dead button, .character-card.status-dead select,
+        .character-card.status-dead .stat-adjust-btn {
+            pointer-events: none !important;
+        }
+        .character-card.status-dead .remove-button,
+        .character-card.status-dead .char-name-display,
+        .character-card.status-dead .char-name-edit,
+        .character-card.status-dead .type-select,
+        .character-card.status-dead .mark-dead-btn {
+            pointer-events: auto !important;
+            filter: none;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+
+<div class="main-container">
+    <h1>Star Wars</h1>
+    <h2>Age of Rebellion Combat Tracker</h2>
+    
+    <div class="main-controls">
+        <button onclick="addCombatant()">Add Combatant</button>
+        <div class="destiny-pool-container" id="destiny-pool">
+            <!-- Destiny points will be generated here -->
+        </div>
+        <button id="clear-data-button" onclick="clearSavedData()">Clear All Data</button>
+    </div>
+
+    <div class="dashboard" id="dashboard">
+        <!-- Character cards will be generated here -->
+    </div>
+</div>
+
+<script>
+    // --- SVG Data Store ---
+    const svgStates = {
+        healthy: `<svg viewBox="0 0 100 100"><path d="M10 50 L30 70 L90 20" fill="none" stroke-width="8" stroke-linecap="round"/></svg>`,
+        injured: `<svg viewBox="0 0 100 100"><path d="M20 20 L80 80 M80 20 L20 80" fill="none" stroke-width="8" stroke-linecap="round"/></svg>`,
+        incapacitated: `<svg viewBox="0 0 100 100"><path d="M50 10 V90 M10 50 H90" fill="none" stroke-width="8" stroke-linecap="round" transform="rotate(45 50 50)"/></svg>`,
+        dead: `<svg viewBox="0 0 100 100" stroke-width="8" stroke-linecap="round"><circle cx="50" cy="35" r="10" fill="none"/><path d="M30 90 L50 60 L70 90 M30 65 H70" fill="none"/></svg>`,
+    };
+
+    // --- Data Store ---
+    let characters = {};
+    let destinyPool = { light: 0, dark: 0 };
+    let nextCombatantIdCounter = 1;
+    
+    // --- Local Storage Keys ---
+    const CHAR_DATA_KEY = 'aorTracker_characters';
+    const DESTINY_DATA_KEY = 'aorTracker_destiny';
+
+    // --- Core Functions ---
+
+    /**
+     * Initializes the application on page load.
+     * Loads data from local storage or sets up default state.
+     */
+    document.addEventListener('DOMContentLoaded', () => {
+        if (!loadState()) {
+            // If no data loaded, set up a default state
+            setupDefaultState();
+        }
+        renderDashboard();
+        renderDestinyPool();
+    });
+
+    /**
+     * Sets up a default state with example characters and destiny points.
+     */
+    function setupDefaultState() {
+        characters = {
+            char1: { name: "ZAE", type: 'PC', woundThreshold: 12, wounds: 0, strainThreshold: 14, strain: 0, soak: 3, meleeDef: 0, rangedDef: 0, criticalInjuries: [], status: 'Healthy', svgStateKey: 'healthy' },
+            npc1: { name: "STORMCOMMANDO", type: 'Rival', woundThreshold: 10, wounds: 3, strainThreshold: 10, strain: 0, soak: 4, meleeDef: 1, rangedDef: 1, criticalInjuries: [], status: 'Injured', svgStateKey: 'injured' },
+            minion1: { name: "PROBE DROID (3)", type: 'Minion', woundThreshold: 4, wounds: 0, strainThreshold: 0, strain: 0, soak: 2, meleeDef: 0, rangedDef: 0, criticalInjuries: [], status: 'Healthy', svgStateKey: 'healthy' }
+        };
+        destinyPool = { light: 2, dark: 1 };
+        nextCombatantIdCounter = 4;
+    }
+
+    /**
+     * Renders the entire dashboard, creating/updating all character cards.
+     */
+    function renderDashboard() {
+        const dashboardElement = document.getElementById('dashboard');
+        if (!dashboardElement) return;
+
+        // Simple render order, no initiative sorting by default
+        dashboardElement.innerHTML = '';
+        Object.keys(characters).forEach(charId => {
+            const cardElement = createCharacterCardElement(charId);
+            if (cardElement) {
+                dashboardElement.appendChild(cardElement);
+                renderCharacterCard(charId);
+            }
+        });
+    }
+
+    /**
+     * Renders or updates a single character card with current data.
+     */
+    function renderCharacterCard(charId) {
+        const char = characters[charId];
+        const card = document.getElementById(charId);
+        if (!char || !card) return;
+
+        // Update status class
+        ['healthy', 'injured', 'incapacitated', 'dead'].forEach(s => card.classList.remove(`status-${s}`));
+        card.classList.add(`status-${char.status.toLowerCase()}`);
+
+        // Update name
+        card.querySelector('.char-name-display').textContent = char.name.toUpperCase();
+        card.querySelector('.char-name-edit').value = char.name;
+
+        // Update status indicator SVG
+        card.querySelector('.status-indicator').innerHTML = svgStates[char.svgStateKey] || svgStates['healthy'];
+        
+        // Update stats
+        card.querySelector('.wounds-value').textContent = char.wounds;
+        card.querySelector('.wounds-threshold').textContent = `/ ${char.woundThreshold}`;
+        card.querySelector('.strain-value').textContent = char.strain;
+        card.querySelector('.strain-threshold').textContent = `/ ${char.strainThreshold}`;
+        
+        // Update info grid inputs
+        card.querySelector('.input-type').value = char.type;
+        card.querySelector('.input-soak').value = char.soak;
+        card.querySelector('.input-melee-def').value = char.meleeDef;
+        card.querySelector('.input-ranged-def').value = char.rangedDef;
+        card.querySelector('.input-wound-threshold').value = char.woundThreshold;
+        card.querySelector('.input-strain-threshold').value = char.strainThreshold;
+
+        // Update critical injuries list
+        const critList = card.querySelector('.crit-injuries-list');
+        const critHeader = card.querySelector('.crit-injuries-section h3');
+        critHeader.textContent = `Critical Injuries (+${char.criticalInjuries.length * 10})`;
+        critList.innerHTML = '';
+        char.criticalInjuries.forEach((crit, index) => {
+            const li = document.createElement('li');
+            li.innerHTML = `<span>${crit}</span><button onclick="updateStatus('${charId}', 'removeCriticalInjury', ${index})">X</button>`;
+            critList.appendChild(li);
+        });
+
+        // Update Dead/Revive button
+        const deadBtn = card.querySelector('.mark-dead-btn');
+        if (char.status === 'Dead') {
+            deadBtn.textContent = 'Revive';
+            deadBtn.onclick = () => updateStatus(charId, 'revive');
+        } else {
+            deadBtn.textContent = 'Mark Dead';
+            deadBtn.onclick = () => updateStatus(charId, 'setDead');
+        }
+    }
+    
+    /**
+     * Creates the HTML structure for a single character card.
+     */
+    function createCharacterCardElement(charId) {
+        const char = characters[charId];
+        if (!char) return null;
+
+        const card = document.createElement('div');
+        card.className = 'character-card';
+        card.id = charId;
+        
+        const nameDisplayId = `name-display-${charId}`;
+        const nameInputId = `name-edit-${charId}`;
+
+        card.innerHTML = `
+            <button class="remove-button" onclick="removeCombatant('${charId}')" title="Remove ${char.name}">X</button>
+            
+            <div class="monitor-area">
+                <div class="status-indicator"></div>
+                <div class="name-and-type">
+                    <span class="char-name-display" id="${nameDisplayId}" onclick="showNameInput('${charId}')">${char.name.toUpperCase()}</span>
+                    <input type="text" class="char-name-edit" id="${nameInputId}" value="${char.name}" onblur="hideNameInput('${charId}')" onkeydown="if(event.key === 'Enter') this.blur();">
+                </div>
+            </div>
+
+            <div class="stat-grid">
+                <div class="stat-box">
+                    <button class="stat-adjust-btn" onclick="updateStatus('${charId}', 'decrementWounds')" title="-1 Wound">-</button>
+                    <div class="stat-readout">
+                         <label>Wounds</label>
+                         <div>
+                            <span class="value wounds-value">0</span><span class="threshold wounds-threshold">/ 10</span>
+                         </div>
+                    </div>
+                    <button class="stat-adjust-btn" onclick="updateStatus('${charId}', 'incrementWounds')" title="+1 Wound">+</button>
+                </div>
+                <div class="stat-box">
+                    <button class="stat-adjust-btn" onclick="updateStatus('${charId}', 'decrementStrain')" title="-1 Strain">-</button>
+                    <div class="stat-readout">
+                        <label>Strain</label>
+                        <div>
+                            <span class="value strain-value">0</span><span class="threshold strain-threshold">/ 10</span>
+                        </div>
+                    </div>
+                    <button class="stat-adjust-btn" onclick="updateStatus('${charId}', 'incrementStrain')" title="+1 Strain">+</button>
+                </div>
+            </div>
+
+            <div class="info-grid">
+                <div class="info-item"><label>Type:</label> <select class="input-type" onchange="updateStatus('${charId}', 'setType', this.value)"><option>PC</option><option>Minion</option><option>Rival</option><option>Nemesis</option></select></div>
+                <div class="info-item"><label>Soak:</label> <input type="number" class="input-soak" min="0" onchange="updateStatus('${charId}', 'setSoak', this.value)"></div>
+                <div class="info-item"><label>M. Def:</label> <input type="number" class="input-melee-def" min="0" onchange="updateStatus('${charId}', 'setMeleeDef', this.value)"></div>
+                <div class="info-item"><label>R. Def:</label> <input type="number" class="input-ranged-def" min="0" onchange="updateStatus('${charId}', 'setRangedDef', this.value)"></div>
+                <div class="info-item"><label>W. Thresh:</label> <input type="number" class="input-wound-threshold" min="1" onchange="updateStatus('${charId}', 'setWoundThreshold', this.value)"></div>
+                <div class="info-item"><label>S. Thresh:</label> <input type="number" class="input-strain-threshold" min="0" onchange="updateStatus('${charId}', 'setStrainThreshold', this.value)"></div>
+            </div>
+
+            <div class="crit-injuries-section">
+                <h3>Critical Injuries (+0)</h3>
+                <ul class="crit-injuries-list"></ul>
+                <form class="add-crit-form" onsubmit="event.preventDefault(); addCriticalInjuryFromInput('${charId}');">
+                    <input type="text" placeholder="Add Critical Injury...">
+                    <button type="submit">+</button>
+                </form>
+            </div>
+            
+            <div style="margin-top:10px;">
+                 <button class="mark-dead-btn" style="width:100%; font-size: 0.9em; padding: 4px 8px; border-radius: 2px; cursor: pointer; text-transform: uppercase; background-color: var(--input-bg); color: var(--text-color); border: 1px solid var(--input-border);">Mark Dead</button>
+            </div>
+        `;
+        return card;
+    }
+
+    /**
+     * Central function to update character data and trigger redraws.
+     */
+    function updateStatus(charId, action, value) {
+        const char = characters[charId];
+        if (!char) return;
+        
+        // Limit actions if dead, except for revive and type changes
+        const allowedWhenDead = ['revive', 'setType', 'setName'];
+        if (char.status === 'Dead' && !allowedWhenDead.includes(action)) return;
+
+        switch (action) {
+            case 'setName': char.name = value.trim() || "Unnamed"; break;
+            case 'setType': char.type = value; break;
+            case 'setSoak': char.soak = Math.max(0, parseInt(value, 10) || 0); break;
+            case 'setMeleeDef': char.meleeDef = Math.max(0, parseInt(value, 10) || 0); break;
+            case 'setRangedDef': char.rangedDef = Math.max(0, parseInt(value, 10) || 0); break;
+            case 'setWoundThreshold': char.woundThreshold = Math.max(1, parseInt(value, 10) || 1); break;
+            case 'setStrainThreshold': char.strainThreshold = Math.max(0, parseInt(value, 10) || 0); break;
+            
+            case 'incrementWounds': char.wounds++; break;
+            case 'decrementWounds': char.wounds = Math.max(0, char.wounds - 1); break;
+            case 'incrementStrain': char.strain++; break;
+            case 'decrementStrain': char.strain = Math.max(0, char.strain - 1); break;
+            
+            case 'addCriticalInjury': char.criticalInjuries.push(value); break;
+            case 'removeCriticalInjury': char.criticalInjuries.splice(value, 1); break;
+
+            case 'setDead':
+                char.status = 'Dead';
+                char.svgStateKey = 'dead';
+                char.wounds = char.woundThreshold;
+                char.strain = char.strainThreshold;
+                break;
+            case 'revive':
+                char.status = 'Healthy'; // Will be recalculated
+                char.wounds = char.woundThreshold; // Start at threshold, so they are incapacitated
+                char.strain = char.strainThreshold > 0 ? char.strainThreshold : 0;
+                break;
+        }
+
+        recalculateStatus(charId);
+        renderCharacterCard(charId);
+        saveState();
+    }
+    
+    /**
+     * Recalculates a character's status based on their current wounds, strain, etc.
+     */
+    function recalculateStatus(charId) {
+        const char = characters[charId];
+        if (!char || char.status === 'Dead') return;
+        
+        if (char.wounds > char.woundThreshold || char.strain > char.strainThreshold) {
+            char.status = 'Incapacitated';
+            char.svgStateKey = 'incapacitated';
+        } else if (char.wounds > char.woundThreshold / 2) {
+            char.status = 'Injured';
+            char.svgStateKey = 'injured';
+        } else {
+            char.status = 'Healthy';
+            char.svgStateKey = 'healthy';
+        }
+    }
+
+    // --- Combatant Management ---
+    function addCombatant() {
+        const id = `char${nextCombatantIdCounter++}`;
+        characters[id] = {
+            name: "New Combatant", type: 'Minion',
+            woundThreshold: 5, wounds: 0, strainThreshold: 0, strain: 0,
+            soak: 2, meleeDef: 0, rangedDef: 0, criticalInjuries: [],
+            status: 'Healthy', svgStateKey: 'healthy'
+        };
+        renderDashboard();
+        saveState();
+    }
+
+    function removeCombatant(charId) {
+        // The confirm() dialog is not supported in the execution environment.
+        // Removing character directly. A custom modal would be a good future improvement.
+        if (characters[charId]) {
+            delete characters[charId];
+            renderDashboard();
+            saveState();
+        }
+    }
+    
+    function addCriticalInjuryFromInput(charId) {
+        const form = document.getElementById(charId).querySelector('.add-crit-form');
+        const input = form.querySelector('input');
+        const critText = input.value.trim();
+        if (critText) {
+            updateStatus(charId, 'addCriticalInjury', critText);
+        }
+        input.value = '';
+    }
+
+    // --- UI Helpers ---
+    function showNameInput(charId) {
+        const card = document.getElementById(charId);
+        card.querySelector('.char-name-display').style.display = 'none';
+        const input = card.querySelector('.char-name-edit');
+        input.style.display = 'inline-block';
+        input.focus();
+        input.select();
+    }
+
+    function hideNameInput(charId) {
+        const card = document.getElementById(charId);
+        const input = card.querySelector('.char-name-edit');
+        updateStatus(charId, 'setName', input.value);
+        input.style.display = 'none';
+        card.querySelector('.char-name-display').style.display = 'inline-block';
+    }
+    
+    // --- Destiny Pool ---
+    function renderDestinyPool() {
+        const poolContainer = document.getElementById('destiny-pool');
+        
+        let lightTokensHTML = '';
+        for (let i = 0; i < destinyPool.light; i++) {
+            lightTokensHTML += `<div class="destiny-point light" onclick="flipDestinyPoint('light')" title="Flip to Dark Side">L</div>`;
+        }
+        
+        let darkTokensHTML = '';
+        for (let i = 0; i < destinyPool.dark; i++) {
+            darkTokensHTML += `<div class="destiny-point dark" onclick="flipDestinyPoint('dark')" title="Flip to Light Side">D</div>`;
+        }
+
+        poolContainer.innerHTML = `
+            <button onclick="addDestinyToken()" title="Add a Light Side token to the pool">+</button>
+            <span>DESTINY:</span>
+            ${lightTokensHTML}
+            ${darkTokensHTML}
+            <button onclick="removeDestinyToken()" title="Remove a token from the pool">-</button>
+        `;
+    }
+    
+    function addDestinyToken() {
+        // Adds a new token, defaults to Light side
+        destinyPool.light++;
+        renderDestinyPool();
+        saveState();
+    }
+
+    function removeDestinyToken() {
+        // Removes a token, prioritizing Light side
+        if (destinyPool.light > 0) {
+            destinyPool.light--;
+        } else if (destinyPool.dark > 0) {
+            destinyPool.dark--;
+        }
+        renderDestinyPool();
+        saveState();
+    }
+
+
+    function flipDestinyPoint(fromSide) {
+        if (fromSide === 'light' && destinyPool.light > 0) {
+            destinyPool.light--;
+            destinyPool.dark++;
+        } else if (fromSide === 'dark' && destinyPool.dark > 0) {
+            destinyPool.dark--;
+            destinyPool.light++;
+        }
+        renderDestinyPool();
+        saveState();
+    }
+
+    // --- Data Persistence ---
+    function saveState() {
+        try {
+            localStorage.setItem(CHAR_DATA_KEY, JSON.stringify({ characters, nextId: nextCombatantIdCounter }));
+            localStorage.setItem(DESTINY_DATA_KEY, JSON.stringify(destinyPool));
+        } catch (e) {
+            console.error("Failed to save state:", e);
+        }
+    }
+
+    function loadState() {
+        try {
+            const charDataString = localStorage.getItem(CHAR_DATA_KEY);
+            const destinyDataString = localStorage.getItem(DESTINY_DATA_KEY);
+
+            if (charDataString) {
+                const charData = JSON.parse(charDataString);
+                characters = charData.characters;
+                nextCombatantIdCounter = charData.nextId;
+            }
+            if (destinyDataString) {
+                destinyPool = JSON.parse(destinyDataString);
+            }
+            
+            return charDataString || destinyDataString;
+        } catch (e) {
+            console.error("Failed to load state:", e);
+            return false;
+        }
+    }
+    
+    function clearSavedData() {
+        // The confirm() dialog is not supported in the execution environment.
+        // For now, we'll clear data directly. A custom modal would be a good future improvement.
+        localStorage.removeItem(CHAR_DATA_KEY);
+        localStorage.removeItem(DESTINY_DATA_KEY);
+        window.location.reload();
+    }
+
+</script>
+
+</body>
+</html>
