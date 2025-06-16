@@ -181,6 +181,13 @@
             color: var(--text-color);
             position: relative;
             transition: border-color 0.3s ease, opacity 0.3s ease;
+            cursor: grab;
+        }
+        
+        .character-card.dragging {
+            opacity: 0.5;
+            border-style: dashed;
+            cursor: grabbing;
         }
         
         .remove-button {
@@ -395,15 +402,34 @@
         const dashboardElement = document.getElementById('dashboard');
         if (!dashboardElement) return;
 
-        // Simple render order, no initiative sorting by default
+        const activeElementId = document.activeElement?.id;
+        
+        // Save character order if initiative tracking is active
+        const characterOrder = Array.from(dashboardElement.children).map(card => card.id);
+
         dashboardElement.innerHTML = '';
-        Object.keys(characters).forEach(charId => {
-            const cardElement = createCharacterCardElement(charId);
-            if (cardElement) {
-                dashboardElement.appendChild(cardElement);
-                renderCharacterCard(charId);
+        
+        const idsToRender = characterOrder.length > 0 ? characterOrder : Object.keys(characters);
+
+        idsToRender.forEach(charId => {
+            if(characters[charId]) {
+                const cardElement = createCharacterCardElement(charId);
+                if (cardElement) {
+                    dashboardElement.appendChild(cardElement);
+                    renderCharacterCard(charId);
+                }
             }
         });
+        
+        initializeDragAndDrop();
+        
+        // Restore focus to avoid losing input focus on rerender
+        if(activeElementId) {
+            const focusedElement = document.getElementById(activeElementId);
+            if(focusedElement) {
+                focusedElement.focus();
+            }
+        }
     }
 
     /**
@@ -419,8 +445,9 @@
         card.classList.add(`status-${char.status.toLowerCase()}`);
 
         // Update name
-        card.querySelector('.char-name-display').textContent = char.name.toUpperCase();
-        card.querySelector('.char-name-edit').value = char.name;
+        if (document.activeElement !== card.querySelector('.char-name-edit')) {
+            card.querySelector('.char-name-display').textContent = char.name.toUpperCase();
+        }
 
         // Update status indicator SVG
         card.querySelector('.status-indicator').innerHTML = svgStates[char.svgStateKey] || svgStates['healthy'];
@@ -431,13 +458,14 @@
         card.querySelector('.strain-value').textContent = char.strain;
         card.querySelector('.strain-threshold').textContent = `/ ${char.strainThreshold}`;
         
-        // Update info grid inputs
-        card.querySelector('.input-type').value = char.type;
-        card.querySelector('.input-soak').value = char.soak;
-        card.querySelector('.input-melee-def').value = char.meleeDef;
-        card.querySelector('.input-ranged-def').value = char.rangedDef;
-        card.querySelector('.input-wound-threshold').value = char.woundThreshold;
-        card.querySelector('.input-strain-threshold').value = char.strainThreshold;
+        // Update info grid inputs if not focused
+        if (document.activeElement !== card.querySelector('.input-type')) card.querySelector('.input-type').value = char.type;
+        if (document.activeElement !== card.querySelector('.input-soak')) card.querySelector('.input-soak').value = char.soak;
+        if (document.activeElement !== card.querySelector('.input-melee-def')) card.querySelector('.input-melee-def').value = char.meleeDef;
+        if (document.activeElement !== card.querySelector('.input-ranged-def')) card.querySelector('.input-ranged-def').value = char.rangedDef;
+        if (document.activeElement !== card.querySelector('.input-wound-threshold')) card.querySelector('.input-wound-threshold').value = char.woundThreshold;
+        if (document.activeElement !== card.querySelector('.input-strain-threshold')) card.querySelector('.input-strain-threshold').value = char.strainThreshold;
+
 
         // Update critical injuries list
         const critList = card.querySelector('.crit-injuries-list');
@@ -471,6 +499,7 @@
         const card = document.createElement('div');
         card.className = 'character-card';
         card.id = charId;
+        card.setAttribute('draggable', 'true');
         
         const nameDisplayId = `name-display-${charId}`;
         const nameInputId = `name-edit-${charId}`;
@@ -492,7 +521,7 @@
                     <div class="stat-readout">
                          <label>Wounds</label>
                          <div>
-                            <span class="value wounds-value">0</span><span class="threshold wounds-threshold">/ 10</span>
+                            <span class="value wounds-value">${char.wounds}</span><span class="threshold wounds-threshold">/ ${char.woundThreshold}</span>
                          </div>
                     </div>
                     <button class="stat-adjust-btn" onclick="updateStatus('${charId}', 'incrementWounds')" title="+1 Wound">+</button>
@@ -502,7 +531,7 @@
                     <div class="stat-readout">
                         <label>Strain</label>
                         <div>
-                            <span class="value strain-value">0</span><span class="threshold strain-threshold">/ 10</span>
+                            <span class="value strain-value">${char.strain}</span><span class="threshold strain-threshold">/ ${char.strainThreshold}</span>
                         </div>
                     </div>
                     <button class="stat-adjust-btn" onclick="updateStatus('${charId}', 'incrementStrain')" title="+1 Strain">+</button>
@@ -511,11 +540,11 @@
 
             <div class="info-grid">
                 <div class="info-item"><label>Type:</label> <select class="input-type" onchange="updateStatus('${charId}', 'setType', this.value)"><option>PC</option><option>Minion</option><option>Rival</option><option>Nemesis</option></select></div>
-                <div class="info-item"><label>Soak:</label> <input type="number" class="input-soak" min="0" onchange="updateStatus('${charId}', 'setSoak', this.value)"></div>
-                <div class="info-item"><label>M. Def:</label> <input type="number" class="input-melee-def" min="0" onchange="updateStatus('${charId}', 'setMeleeDef', this.value)"></div>
-                <div class="info-item"><label>R. Def:</label> <input type="number" class="input-ranged-def" min="0" onchange="updateStatus('${charId}', 'setRangedDef', this.value)"></div>
-                <div class="info-item"><label>W. Thresh:</label> <input type="number" class="input-wound-threshold" min="1" onchange="updateStatus('${charId}', 'setWoundThreshold', this.value)"></div>
-                <div class="info-item"><label>S. Thresh:</label> <input type="number" class="input-strain-threshold" min="0" onchange="updateStatus('${charId}', 'setStrainThreshold', this.value)"></div>
+                <div class="info-item"><label>Soak:</label> <input type="number" class="input-soak" min="0" onchange="updateStatus('${charId}', 'setSoak', this.valueAsNumber)"></div>
+                <div class="info-item"><label>M. Def:</label> <input type="number" class="input-melee-def" min="0" onchange="updateStatus('${charId}', 'setMeleeDef', this.valueAsNumber)"></div>
+                <div class="info-item"><label>R. Def:</label> <input type="number" class="input-ranged-def" min="0" onchange="updateStatus('${charId}', 'setRangedDef', this.valueAsNumber)"></div>
+                <div class="info-item"><label>W. Thresh:</label> <input type="number" class="input-wound-threshold" min="1" onchange="updateStatus('${charId}', 'setWoundThreshold', this.valueAsNumber)"></div>
+                <div class="info-item"><label>S. Thresh:</label> <input type="number" class="input-strain-threshold" min="0" onchange="updateStatus('${charId}', 'setStrainThreshold', this.valueAsNumber)"></div>
             </div>
 
             <div class="crit-injuries-section">
@@ -613,8 +642,6 @@
     }
 
     function removeCombatant(charId) {
-        // The confirm() dialog is not supported in the execution environment.
-        // Removing character directly. A custom modal would be a good future improvement.
         if (characters[charId]) {
             delete characters[charId];
             renderDashboard();
@@ -674,14 +701,12 @@
     }
     
     function addDestinyToken() {
-        // Adds a new token, defaults to Light side
         destinyPool.light++;
         renderDestinyPool();
         saveState();
     }
 
     function removeDestinyToken() {
-        // Removes a token, prioritizing Light side
         if (destinyPool.light > 0) {
             destinyPool.light--;
         } else if (destinyPool.dark > 0) {
@@ -703,6 +728,49 @@
         renderDestinyPool();
         saveState();
     }
+    
+    // --- Initiative Drag and Drop ---
+    function initializeDragAndDrop() {
+        const dashboard = document.getElementById('dashboard');
+
+        dashboard.addEventListener('dragover', e => {
+            e.preventDefault();
+            const afterElement = getDragAfterElement(dashboard, e.clientY);
+            const dragging = document.querySelector('.dragging');
+            if(dragging) {
+                 if (afterElement == null) {
+                    dashboard.appendChild(dragging);
+                } else {
+                    dashboard.insertBefore(dragging, afterElement);
+                }
+            }
+        });
+
+        const cards = dashboard.querySelectorAll('.character-card');
+        cards.forEach(card => {
+            card.addEventListener('dragstart', () => {
+                card.classList.add('dragging');
+            });
+            card.addEventListener('dragend', () => {
+                card.classList.remove('dragging');
+            });
+        });
+    }
+
+    function getDragAfterElement(container, y) {
+        const draggableElements = [...container.querySelectorAll('.character-card:not(.dragging)')];
+
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) {
+                return { offset: offset, element: child };
+            } else {
+                return closest;
+            }
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+
 
     // --- Data Persistence ---
     function saveState() {
@@ -736,8 +804,6 @@
     }
     
     function clearSavedData() {
-        // The confirm() dialog is not supported in the execution environment.
-        // For now, we'll clear data directly. A custom modal would be a good future improvement.
         localStorage.removeItem(CHAR_DATA_KEY);
         localStorage.removeItem(DESTINY_DATA_KEY);
         window.location.reload();
