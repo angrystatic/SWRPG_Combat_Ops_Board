@@ -38,6 +38,10 @@
             --destiny-light-text: #FFFFFF;
             --destiny-dark-bg: #B22222; /* Firebrick Red */
             --destiny-dark-text: #FFFFFF;
+
+            /* Adversary Theme */
+            --adversary-secondary-color: #B22222; /* Firebrick Red */
+            --adversary-text-color: #ff8a8a; /* Lighter red for text */
         }
 
         body {
@@ -189,6 +193,17 @@
             border-style: dashed;
             cursor: grabbing;
         }
+
+        .drop-zone {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px dashed var(--primary-color);
+            border-radius: 4px;
+            height: 100%;
+            min-height: 300px; /* Same as card height */
+            width: 340px;
+            transition: all 0.2s ease;
+            margin: 12.5px; /* Half of the gap */
+        }
         
         .remove-button {
             position: absolute; top: 3px; right: 3px; background-color: #500; color: #fcc; border: 1px solid #a00;
@@ -307,6 +322,7 @@
         .add-crit-form input { flex-grow: 1; padding: 2px 4px; background-color: var(--input-bg); color: var(--text-color); border: 1px solid var(--input-border); border-radius: 2px; font-family: inherit; font-size: 1em; }
         .add-crit-form button { padding: 2px 8px; font-size: 1em; background-color: var(--input-bg); color: var(--text-color); border: 1px solid var(--input-border); cursor: pointer; }
         
+        /* --- Status Overrides --- */
         .character-card.status-incapacitated { border-color: var(--incapacitated-color); }
         .character-card.status-incapacitated .status-indicator path,
         .character-card.status-incapacitated .status-indicator circle { stroke: var(--incapacitated-color); }
@@ -328,6 +344,14 @@
             filter: none;
             opacity: 1;
         }
+
+        /* --- Adversary Theme --- */
+        .character-card.adversary {
+            --card-border-color: var(--adversary-secondary-color);
+            --text-color: var(--adversary-text-color);
+            --secondary-color: #ff6666; /* Light Red for labels */
+        }
+
     </style>
 </head>
 <body>
@@ -405,7 +429,9 @@
         const activeElementId = document.activeElement?.id;
         
         // Get the current order of character cards from the DOM
-        const existingOrder = Array.from(dashboardElement.children).map(card => card.id);
+        const existingOrder = Array.from(dashboardElement.children)
+            .filter(child => child.classList.contains('character-card'))
+            .map(card => card.id);
         
         // Get all character IDs from our data source
         const allCharIds = Object.keys(characters);
@@ -447,7 +473,14 @@
         const card = document.getElementById(charId);
         if (!char || !card) return;
 
-        // Update status class
+        // Update status and theme class
+        const adversaryTypes = ['Minion', 'Rival', 'Nemesis'];
+        if (adversaryTypes.includes(char.type)) {
+            card.classList.add('adversary');
+        } else {
+            card.classList.remove('adversary');
+        }
+
         ['healthy', 'injured', 'incapacitated', 'dead'].forEach(s => card.classList.remove(`status-${s}`));
         card.classList.add(`status-${char.status.toLowerCase()}`);
 
@@ -577,7 +610,6 @@
         const char = characters[charId];
         if (!char) return;
         
-        // Limit actions if dead, except for revive and type changes
         const allowedWhenDead = ['revive', 'setType', 'setName'];
         if (char.status === 'Dead' && !allowedWhenDead.includes(action)) return;
 
@@ -605,8 +637,8 @@
                 char.strain = char.strainThreshold;
                 break;
             case 'revive':
-                char.status = 'Healthy'; // Will be recalculated
-                char.wounds = char.woundThreshold; // Start at threshold, so they are incapacitated
+                char.status = 'Healthy';
+                char.wounds = char.woundThreshold;
                 char.strain = char.strainThreshold > 0 ? char.strainThreshold : 0;
                 break;
         }
@@ -739,27 +771,50 @@
     // --- Initiative Drag and Drop ---
     function initializeDragAndDrop() {
         const dashboard = document.getElementById('dashboard');
-
+        
         dashboard.addEventListener('dragover', e => {
             e.preventDefault();
-            const afterElement = getDragAfterElement(dashboard, e.clientY);
             const dragging = document.querySelector('.dragging');
-            if(dragging) {
-                 if (afterElement == null) {
-                    dashboard.appendChild(dragging);
-                } else {
-                    dashboard.insertBefore(dragging, afterElement);
-                }
+            if (!dragging) return;
+            
+            // Remove any existing drop zones
+            const existingDropZones = dashboard.querySelectorAll('.drop-zone');
+            existingDropZones.forEach(zone => zone.remove());
+
+            const afterElement = getDragAfterElement(dashboard, e.clientY);
+            
+            // Create a new drop zone placeholder
+            const dropZone = document.createElement('div');
+            dropZone.classList.add('drop-zone');
+
+            if (afterElement == null) {
+                dashboard.appendChild(dropZone);
+            } else {
+                dashboard.insertBefore(dropZone, afterElement);
             }
+        });
+        
+        dashboard.addEventListener('drop', e => {
+             const dragging = document.querySelector('.dragging');
+             const dropZone = document.querySelector('.drop-zone');
+             if(dragging && dropZone) {
+                dashboard.insertBefore(dragging, dropZone);
+             }
+             // Clean up any remaining drop zones on drop
+             const allDropZones = dashboard.querySelectorAll('.drop-zone');
+             allDropZones.forEach(zone => zone.remove());
         });
 
         const cards = dashboard.querySelectorAll('.character-card');
         cards.forEach(card => {
             card.addEventListener('dragstart', () => {
-                card.classList.add('dragging');
+                setTimeout(() => card.classList.add('dragging'), 0); // timeout helps with visual feedback
             });
             card.addEventListener('dragend', () => {
                 card.classList.remove('dragging');
+                // Clean up any lingering drop zones after drag ends
+                const allDropZones = dashboard.querySelectorAll('.drop-zone');
+                allDropZones.forEach(zone => zone.remove());
             });
         });
     }
@@ -796,8 +851,8 @@
 
             if (charDataString) {
                 const charData = JSON.parse(charDataString);
-                characters = charData.characters;
-                nextCombatantIdCounter = charData.nextId;
+                characters = charData.characters || {};
+                nextCombatantIdCounter = charData.nextId || 1;
             }
             if (destinyDataString) {
                 destinyPool = JSON.parse(destinyDataString);
