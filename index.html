@@ -195,14 +195,14 @@
         }
 
         .drop-zone {
-            background: rgba(255, 255, 255, 0.1);
+            background: transparent;
             border: 2px dashed var(--primary-color);
             border-radius: 4px;
-            height: 100%;
-            min-height: 300px; /* Same as card height */
+            height: 390px; /* Approximate height of a card */
             width: 340px;
             transition: all 0.2s ease;
-            margin: 12.5px; /* Half of the gap */
+            box-sizing: border-box;
+            flex-shrink: 0;
         }
         
         .remove-button {
@@ -384,6 +384,7 @@
 
     // --- Data Store ---
     let characters = {};
+    let characterOrder = [];
     let destinyPool = { light: 0, dark: 0 };
     let nextCombatantIdCounter = 1;
     
@@ -393,87 +394,53 @@
 
     // --- Core Functions ---
 
-    /**
-     * Initializes the application on page load.
-     * Loads data from local storage or sets up default state.
-     */
     document.addEventListener('DOMContentLoaded', () => {
         if (!loadState()) {
-            // If no data loaded, set up a default state
             setupDefaultState();
         }
         renderDashboard();
         renderDestinyPool();
     });
 
-    /**
-     * Sets up a default state with example characters and destiny points.
-     */
     function setupDefaultState() {
         characters = {
             char1: { name: "ZAE", type: 'PC', woundThreshold: 12, wounds: 0, strainThreshold: 14, strain: 0, soak: 3, meleeDef: 0, rangedDef: 0, criticalInjuries: [], status: 'Healthy', svgStateKey: 'healthy' },
             npc1: { name: "STORMCOMMANDO", type: 'Rival', woundThreshold: 10, wounds: 3, strainThreshold: 10, strain: 0, soak: 4, meleeDef: 1, rangedDef: 1, criticalInjuries: [], status: 'Injured', svgStateKey: 'injured' },
             minion1: { name: "PROBE DROID (3)", type: 'Minion', woundThreshold: 4, wounds: 0, strainThreshold: 0, strain: 0, soak: 2, meleeDef: 0, rangedDef: 0, criticalInjuries: [], status: 'Healthy', svgStateKey: 'healthy' }
         };
+        characterOrder = ['char1', 'npc1', 'minion1'];
         destinyPool = { light: 2, dark: 1 };
         nextCombatantIdCounter = 4;
     }
 
-    /**
-     * Renders the entire dashboard, creating/updating all character cards.
-     */
     function renderDashboard() {
         const dashboardElement = document.getElementById('dashboard');
         if (!dashboardElement) return;
 
         const activeElementId = document.activeElement?.id;
         
-        // Get the current order of character cards from the DOM
-        const existingOrder = Array.from(dashboardElement.children)
-            .filter(child => child.classList.contains('character-card'))
-            .map(card => card.id);
-        
-        // Get all character IDs from our data source
-        const allCharIds = Object.keys(characters);
-
-        // Find which characters are new (in data but not in DOM)
-        const newCharIds = allCharIds.filter(id => !existingOrder.includes(id));
-        
-        // Combine the lists: the existing order (filtered for any deleted) plus any new ones
-        const idsToRender = existingOrder
-            .filter(id => allCharIds.includes(id)) // Ensure card exists in data
-            .concat(newCharIds); // Add new cards to the end
-
-        // Clear the board and re-render everything in the correct order
         dashboardElement.innerHTML = '';
-        idsToRender.forEach(charId => {
+        characterOrder.forEach(charId => {
             const cardElement = createCharacterCardElement(charId);
             if (cardElement) {
                 dashboardElement.appendChild(cardElement);
-                renderCharacterCard(charId); // Updates the card with the latest data
+                renderCharacterCard(charId);
             }
         });
         
         initializeDragAndDrop();
         
-        // Restore focus to avoid losing input focus on rerender
         if(activeElementId) {
             const focusedElement = document.getElementById(activeElementId);
-            if(focusedElement) {
-                focusedElement.focus();
-            }
+            if(focusedElement) focusedElement.focus();
         }
     }
 
-    /**
-     * Renders or updates a single character card with current data.
-     */
     function renderCharacterCard(charId) {
         const char = characters[charId];
         const card = document.getElementById(charId);
         if (!char || !card) return;
 
-        // Update status and theme class
         const adversaryTypes = ['Minion', 'Rival', 'Nemesis'];
         if (adversaryTypes.includes(char.type)) {
             card.classList.add('adversary');
@@ -484,21 +451,17 @@
         ['healthy', 'injured', 'incapacitated', 'dead'].forEach(s => card.classList.remove(`status-${s}`));
         card.classList.add(`status-${char.status.toLowerCase()}`);
 
-        // Update name
         if (document.activeElement !== card.querySelector('.char-name-edit')) {
             card.querySelector('.char-name-display').textContent = char.name.toUpperCase();
         }
 
-        // Update status indicator SVG
         card.querySelector('.status-indicator').innerHTML = svgStates[char.svgStateKey] || svgStates['healthy'];
         
-        // Update stats
         card.querySelector('.wounds-value').textContent = char.wounds;
         card.querySelector('.wounds-threshold').textContent = `/ ${char.woundThreshold}`;
         card.querySelector('.strain-value').textContent = char.strain;
         card.querySelector('.strain-threshold').textContent = `/ ${char.strainThreshold}`;
         
-        // Update info grid inputs if not focused
         if (document.activeElement !== card.querySelector('.input-type')) card.querySelector('.input-type').value = char.type;
         if (document.activeElement !== card.querySelector('.input-soak')) card.querySelector('.input-soak').value = char.soak;
         if (document.activeElement !== card.querySelector('.input-melee-def')) card.querySelector('.input-melee-def').value = char.meleeDef;
@@ -506,8 +469,6 @@
         if (document.activeElement !== card.querySelector('.input-wound-threshold')) card.querySelector('.input-wound-threshold').value = char.woundThreshold;
         if (document.activeElement !== card.querySelector('.input-strain-threshold')) card.querySelector('.input-strain-threshold').value = char.strainThreshold;
 
-
-        // Update critical injuries list
         const critList = card.querySelector('.crit-injuries-list');
         const critHeader = card.querySelector('.crit-injuries-section h3');
         critHeader.textContent = `Critical Injuries (+${char.criticalInjuries.length * 10})`;
@@ -518,7 +479,6 @@
             critList.appendChild(li);
         });
 
-        // Update Dead/Revive button
         const deadBtn = card.querySelector('.mark-dead-btn');
         if (char.status === 'Dead') {
             deadBtn.textContent = 'Revive';
@@ -529,9 +489,6 @@
         }
     }
     
-    /**
-     * Creates the HTML structure for a single character card.
-     */
     function createCharacterCardElement(charId) {
         const char = characters[charId];
         if (!char) return null;
@@ -603,9 +560,6 @@
         return card;
     }
 
-    /**
-     * Central function to update character data and trigger redraws.
-     */
     function updateStatus(charId, action, value) {
         const char = characters[charId];
         if (!char) return;
@@ -621,15 +575,12 @@
             case 'setRangedDef': char.rangedDef = Math.max(0, parseInt(value, 10) || 0); break;
             case 'setWoundThreshold': char.woundThreshold = Math.max(1, parseInt(value, 10) || 1); break;
             case 'setStrainThreshold': char.strainThreshold = Math.max(0, parseInt(value, 10) || 0); break;
-            
             case 'incrementWounds': char.wounds++; break;
             case 'decrementWounds': char.wounds = Math.max(0, char.wounds - 1); break;
             case 'incrementStrain': char.strain++; break;
             case 'decrementStrain': char.strain = Math.max(0, char.strain - 1); break;
-            
             case 'addCriticalInjury': char.criticalInjuries.push(value); break;
             case 'removeCriticalInjury': char.criticalInjuries.splice(value, 1); break;
-
             case 'setDead':
                 char.status = 'Dead';
                 char.svgStateKey = 'dead';
@@ -648,14 +599,11 @@
         saveState();
     }
     
-    /**
-     * Recalculates a character's status based on their current wounds, strain, etc.
-     */
     function recalculateStatus(charId) {
         const char = characters[charId];
         if (!char || char.status === 'Dead') return;
         
-        if (char.wounds > char.woundThreshold || char.strain > char.strainThreshold) {
+        if (char.wounds > char.woundThreshold || (char.strain > 0 && char.strain >= char.strainThreshold)) {
             char.status = 'Incapacitated';
             char.svgStateKey = 'incapacitated';
         } else if (char.wounds > char.woundThreshold / 2) {
@@ -676,6 +624,7 @@
             soak: 2, meleeDef: 0, rangedDef: 0, criticalInjuries: [],
             status: 'Healthy', svgStateKey: 'healthy'
         };
+        characterOrder.push(id);
         renderDashboard();
         saveState();
     }
@@ -683,6 +632,7 @@
     function removeCombatant(charId) {
         if (characters[charId]) {
             delete characters[charId];
+            characterOrder = characterOrder.filter(id => id !== charId);
             renderDashboard();
             saveState();
         }
@@ -777,44 +727,44 @@
             const dragging = document.querySelector('.dragging');
             if (!dragging) return;
             
-            // Remove any existing drop zones
-            const existingDropZones = dashboard.querySelectorAll('.drop-zone');
-            existingDropZones.forEach(zone => zone.remove());
-
             const afterElement = getDragAfterElement(dashboard, e.clientY);
+            const currentDropZone = dashboard.querySelector('.drop-zone');
             
-            // Create a new drop zone placeholder
-            const dropZone = document.createElement('div');
-            dropZone.classList.add('drop-zone');
-
-            if (afterElement == null) {
-                dashboard.appendChild(dropZone);
-            } else {
-                dashboard.insertBefore(dropZone, afterElement);
+            if (!currentDropZone) {
+                const dropZone = document.createElement('div');
+                dropZone.classList.add('drop-zone');
+                if (afterElement == null) {
+                    dashboard.appendChild(dropZone);
+                } else {
+                    dashboard.insertBefore(dropZone, afterElement);
+                }
+            } else if (currentDropZone.nextSibling !== afterElement) {
+                currentDropZone.remove();
             }
         });
         
         dashboard.addEventListener('drop', e => {
+             e.preventDefault();
              const dragging = document.querySelector('.dragging');
              const dropZone = document.querySelector('.drop-zone');
              if(dragging && dropZone) {
                 dashboard.insertBefore(dragging, dropZone);
+                const newOrder = Array.from(dashboard.querySelectorAll('.character-card')).map(card => card.id);
+                characterOrder = newOrder;
+                saveState();
              }
-             // Clean up any remaining drop zones on drop
-             const allDropZones = dashboard.querySelectorAll('.drop-zone');
-             allDropZones.forEach(zone => zone.remove());
+             if(dropZone) dropZone.remove();
         });
 
         const cards = dashboard.querySelectorAll('.character-card');
         cards.forEach(card => {
             card.addEventListener('dragstart', () => {
-                setTimeout(() => card.classList.add('dragging'), 0); // timeout helps with visual feedback
+                setTimeout(() => card.classList.add('dragging'), 0);
             });
             card.addEventListener('dragend', () => {
                 card.classList.remove('dragging');
-                // Clean up any lingering drop zones after drag ends
-                const allDropZones = dashboard.querySelectorAll('.drop-zone');
-                allDropZones.forEach(zone => zone.remove());
+                const dropZone = dashboard.querySelector('.drop-zone');
+                if(dropZone) dropZone.remove();
             });
         });
     }
@@ -837,7 +787,12 @@
     // --- Data Persistence ---
     function saveState() {
         try {
-            localStorage.setItem(CHAR_DATA_KEY, JSON.stringify({ characters, nextId: nextCombatantIdCounter }));
+            const state = {
+                characters,
+                characterOrder,
+                nextId: nextCombatantIdCounter
+            };
+            localStorage.setItem(CHAR_DATA_KEY, JSON.stringify(state));
             localStorage.setItem(DESTINY_DATA_KEY, JSON.stringify(destinyPool));
         } catch (e) {
             console.error("Failed to save state:", e);
@@ -852,13 +807,17 @@
             if (charDataString) {
                 const charData = JSON.parse(charDataString);
                 characters = charData.characters || {};
+                characterOrder = charData.characterOrder || Object.keys(characters);
                 nextCombatantIdCounter = charData.nextId || 1;
+            } else {
+                return false; // Nothing to load, setup defaults
             }
+            
             if (destinyDataString) {
                 destinyPool = JSON.parse(destinyDataString);
             }
             
-            return charDataString || destinyDataString;
+            return true; // Successfully loaded data
         } catch (e) {
             console.error("Failed to load state:", e);
             return false;
